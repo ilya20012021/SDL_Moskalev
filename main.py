@@ -145,19 +145,19 @@ try:
     data5["msg"] = o2
 
     res = list(data3["OS"])
-    ind = res[0:2]
+    ind = res[:len(data5["port"])]
     data5["OS"] = ind
 
     res1 = list(data3["NSE Script ID"])
-    ind1 = res1[0:2]
+    ind1 = res1[:len(data5["port"])]
     data5["NSE Script(s)"] = ind1
 
     res2 = list(data3["Proto"])
-    ind2 = res2[0:2]
+    ind2 = res2[:len(data5["port"])]
     data5["Proto"] = ind2
 
     res3 = list(data3["IP"])
-    ind3 = res3[0:2]
+    ind3 = res3[:len(data5["port"])]
     data5["IP"] = ind3
 
     data7 = data5.sort_values("timestamp", ascending=False)
