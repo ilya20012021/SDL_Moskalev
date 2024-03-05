@@ -1,5 +1,5 @@
 [
-{   "ip": "193.41.140.67",   "timestamp": "1709516104", "ports": [ {"port": 80, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
+{   "ip": "193.41.140.67",   "timestamp": "1709665685", "ports": [ {"port": 443, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
 ,
-{   "ip": "193.41.140.67",   "timestamp": "1709516104", "ports": [ {"port": 443, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
+{   "ip": "193.41.140.67",   "timestamp": "1709665685", "ports": [ {"port": 80, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 64} ] }
 ]

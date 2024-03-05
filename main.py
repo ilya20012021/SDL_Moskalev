@@ -15,6 +15,7 @@ from googlesearch import search
 
 # Запрос ввода IP-адреса
 ip = input("Введите IP-адрес для сканирования: ")
+
 try:
     # Nmap сканирование и сохранение в XML
     nmap_cmd = f'nmap -T4 -A {ip} -oX nmap_output.xml'
@@ -25,7 +26,7 @@ try:
     subprocess.run(nikto_cmd, shell=True)
 
     # Masscan сканирование и сохранение в JSON
-    masscan_cmd = f'masscan {ip} -p80,443,8000-8100 -oJ masscan_output.json'
+    masscan_cmd = f'masscan {ip} -p80,443,8000-8100,0-200 --rate=20 -oJ masscan_output.json'
     subprocess.run(masscan_cmd, shell=True)
 
 
@@ -123,7 +124,10 @@ try:
 
     data5.drop('timestamp', axis=1, inplace=True)
     data5.insert(2, 'timestamp', d)
-    print(tabulate(data5, headers="keys", tablefmt="psql"))
+
+    data8 = data3[['OS', 'NSE Script ID', 'Proto', 'IP']]
+    data9 = data8.dropna()
+    data10 = pd.DataFrame()
 
     o = []
     o1 = []
@@ -140,28 +144,14 @@ try:
         o.append(r1)
         o1.append(r2)
         o2.append(r3)
-    data5["id"] = o
-    data5["references"] = o1
-    data5["msg"] = o2
-
-    res = list(data3["OS"])
-    ind = res[:len(data5["port"])]
-    data5["OS"] = ind
-
-    res1 = list(data3["NSE Script ID"])
-    ind1 = res1[:len(data5["port"])]
-    data5["NSE Script(s)"] = ind1
-
-    res2 = list(data3["Proto"])
-    ind2 = res2[:len(data5["port"])]
-    data5["Proto"] = ind2
-
-    res3 = list(data3["IP"])
-    ind3 = res3[:len(data5["port"])]
-    data5["IP"] = ind3
+    data10["id"] = o
+    data10["references"] = o1
+    data10["msg"] = o2
 
     data7 = data5.sort_values("timestamp", ascending=False)
     print(tabulate(data7, headers="keys", tablefmt="psql"))
+    print(tabulate(data9, headers="keys", tablefmt="psql"))
+    print(tabulate(data10, headers="keys", tablefmt="psql"))
 
     total_searches = str(input("How many searches you would like to do: "))
     while not total_searches.isdigit():
@@ -199,3 +189,4 @@ try:
             print(tag.get_text())
 except Exception as e:
     print(e)
+    exit("Masscan's problems in work")
