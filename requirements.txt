@@ -1,6 +1,6 @@
 ﻿# --- core ---
-pandas==1.5.3
-numpy==1.24.2
+pandas==2.2.0
+numpy==1.26.0
 tabulate==0.8.9
 
 # --- web / parsing ---
