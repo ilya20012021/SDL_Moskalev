@@ -19,7 +19,7 @@ import argparse
 from collections import Counter
 from time import sleep
 
-def get_host_data(root):
+def get_host_data(root, args):
     """Traverses the xml tree and build lists of scan information
     and returns a list of lists.
     """
@@ -115,10 +115,10 @@ def parse_xml(filename):
               "Please review the error and try again: {}".format(error))
         exit()
     root = tree.getroot()
-    scan_data = get_host_data(root)
+    scan_data = get_host_data(root, args)
     return scan_data
 
-def parse_to_csv(data):
+def parse_to_csv(data, csv_name):
     """Given a list of data, adds the items to (or creates) a CSV file."""
     if not os.path.isfile(csv_name):
         csv_file = open(csv_name, 'w', newline='')
@@ -230,7 +230,7 @@ def print_data(data):
     for item in data:
         print(' '.join(item))
 
-def main():
+def main(args):
     """Main function of the script."""
     for filename in args.filename:
 
@@ -258,7 +258,7 @@ def main():
                   "Exiting.")
             exit()
         if args.csv:
-            parse_to_csv(data)
+            parse_to_csv(data, args.csv)
         if args.ip_addresses:
             addrs = list_ip_addresses(data)
             for addr in addrs:
@@ -328,5 +328,4 @@ if __name__ == '__main__':
         parser.print_help()
         print("\n[-] Please choose an output option. Use -csv, -ip, or -p\n")
         exit()
-    csv_name = args.csv
-    main()
+    main(args)

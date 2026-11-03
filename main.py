@@ -1,192 +1,211 @@
-import subprocess
-import pandas as pd
-import numpy as np
-from tabulate import tabulate
-from numpy import poly1d
-from bs4 import BeautifulSoup
-import requests
-import random
-import os
-import time
-import datetime
-import json
+"""Экспертная система анализа результатов сканирования безопасности."""
+import argparse
 import ast
-from googlesearch import search
+import datetime
+import random
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
 
-# Запрос ввода IP-адреса
-ip = input("Введите IP-адрес для сканирования: ")
+import numpy as np
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from tabulate import tabulate
 
 try:
-    # Nmap сканирование и сохранение в XML
-    nmap_cmd = f'nmap -T4 -A {ip} -oX nmap_output.xml'
-    subprocess.run(nmap_cmd, shell=True)
-
-    # Nikto сканирование и сохранение в JSON
-    nikto_cmd = f'nikto -h {ip} -Format json -o nikto_output.json'
-    subprocess.run(nikto_cmd, shell=True)
-
-    # Masscan сканирование и сохранение в JSON
-    masscan_cmd = f'masscan {ip} -p80,443,8000-8100,0-200 --rate=20 -oJ masscan_output.json'
-    subprocess.run(masscan_cmd, shell=True)
+    from googlesearch import search as google_search
+except ImportError:
+    google_search = None
 
 
-    def convert_json_to_csv(json_file_path):
-        command = f'python convJson.py -i {"/media/sf_Kali-linux/LastSborka/nikto_output.json"}'  # Предполагая, что convert_json_to_csv.py - это скрипт конвертации
-        subprocess.run(command, shell=True)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+NMAP_XML = DATA_DIR / "nmap_output.xml"
+NIKTO_JSON = DATA_DIR / "nikto_output.json"
+MASSCAN_JSON = DATA_DIR / "masscan_output.json"
 
 
-    def convert_json_to_csv(json_file_path):
-        command = f'python convJson.py -i {"/media/sf_Kali-linux/LastSborka/masscan_output.json"}'  # Предполагая, что convert_json_to_csv.py - это скрипт конвертации
-        subprocess.run(command, shell=True)
+@dataclass
+class ScanConfig:
+    target: str
+    rate: int = 20
 
 
-    # Конвертация .json файлов в .csv
-    convert_json_to_csv("/media/sf_Kali-linux/LastSborka/nikto_output.json")
+# ---------- запуск сканеров ----------
 
-    convert_json_to_csv("/media/sf_Kali-linux/LastSborka/masscan_output.json")
+def _require_tool(name: str) -> None:
+    if shutil.which(name) is None:
+        raise RuntimeError(f"Утилита '{name}' не найдена в PATH")
 
-    # Конвертация .xml файлов в .csv
-    xml2csv = f"python3 xml2csv.py -f nmap_output.xml -csv nmap_output.csv"
-    subprocess.run(xml2csv, shell=True)
 
-    # Загрузка данных из csv-файла
-    # data9 = pd.read_json('/media/sf_Kali-linux/LastSborka/masscan_output.json')
-    data = pd.read_csv('/media/sf_Kali-linux/LastSborka/nmap_output.csv')
-    data1 = pd.read_csv('/media/sf_Kali-linux/LastSborka/masscan_output.csv')
-    data6 = pd.read_csv('/media/sf_Kali-linux/LastSborka/nikto_output.csv')
+def run_scan(cfg: ScanConfig) -> None:
+    """Запускает nmap, nikto и masscan. Без shell=True — нет injection."""
+    _require_tool("nmap")
+    _require_tool("nikto")
+    _require_tool("masscan")
 
-    # timestamp
-    d1 = []
-    for timestamp in data1['timestamp']:
-        a2 = time.mktime(datetime.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').timetuple())
-        d1.append(a2)
-    data1['timestamp'] = d1
+    DATA_DIR.mkdir(exist_ok=True)
 
-    # dict
-    h1 = []
-    h2 = []
-    h3 = []
-    h4 = []
-    h5 = []
-    sunofdog1 = data1["ports"]
-    t = sunofdog1.to_dict()
-    for i in range(len(t)):
-        b = t[i].split()
-        data_str = "".join(b)
-        result = ast.literal_eval(data_str)
-        r1 = result[0].get('port')
-        r2 = result[0].get('proto')
-        r3 = result[0].get('status')
-        r4 = result[0].get('reason')
-        r5 = result[0].get('ttl')
-        h1.append(r1)
-        h2.append(r2)
-        h3.append(r3)
-        h4.append(r4)
-        h5.append(r5)
-    data1['port'] = h1
-    data1['ttl'] = h5
+    subprocess.run(
+        ["nmap", "-T4", "-A", cfg.target, "-oX", str(NMAP_XML)],
+        check=True,
+    )
+    subprocess.run(
+        ["nikto", "-h", cfg.target, "-Format", "json", "-o", str(NIKTO_JSON)],
+        check=True,
+    )
+    subprocess.run(
+        ["masscan", cfg.target, "-p80,443,8000-8100,0-200",
+         f"--rate={cfg.rate}", "-oJ", str(MASSCAN_JSON)],
+        check=True,
+    )
 
-    data3 = pd.concat([data, data1], ignore_index=True)
-    data4 = data3[['port', 'timestamp', 'ttl']]
-    data5 = data4.dropna()
-    print(tabulate(data3, headers="keys", tablefmt="psql"))
-    s = list(data5["timestamp"])
-    s1 = list(data5["port"])
-    s2 = list(data5["ttl"])
 
-    s1[len(s1) - 1] = s1[len(s1) - 1] - s[0]
-    s2[len(s2) - 1] = s2[len(s2) - 1] - s[1]
-    p1 = np.poly1d(s1)
-    p2 = np.poly1d(s2)
-    roots1 = list(p1.r)
-    roots2 = list(p2.r)
+# ---------- конвертация ----------
 
-    d = []
+def json_to_csv(json_path: Path) -> Path:
+    csv_path = json_path.with_suffix(".csv")
+    pd.read_json(json_path).to_csv(csv_path, index=False)
+    return csv_path
 
-    for i in roots2:
-        roots1.append(i)
 
-    a = roots1
-    b = []
-    for i in range(len(a)):
-        t = abs(abs(a[i].real))
-        b.append(t)
-    c = [int(i) for i in b]
+def convert_all() -> dict:
+    result = {
+        "nikto": json_to_csv(NIKTO_JSON),
+        "masscan": json_to_csv(MASSCAN_JSON),
+    }
+    nmap_csv = DATA_DIR / "nmap_output.csv"
+    subprocess.run(
+        [sys.executable, str(BASE_DIR / "xml2csv.py"),
+         "-f", str(NMAP_XML), "-csv", str(nmap_csv)],
+        check=True,
+    )
+    result["nmap"] = nmap_csv
+    return result
 
-    u = 1
-    for i in c:
-        u *= i
 
-    for i in range(len(s1)):
-        y = abs(s1[i] * u + s2[i])
-        d.append(y)
+# ---------- обработка masscan ----------
 
-    data5.drop('timestamp', axis=1, inplace=True)
-    data5.insert(2, 'timestamp', d)
+def parse_masscan(masscan_df: pd.DataFrame) -> pd.DataFrame:
+    """Извлекает port/ttl из поля 'ports' и конвертирует timestamp."""
+    def _first_port(cell):
+        try:
+            ports = ast.literal_eval(str(cell))
+            return ports[0] if ports else {}
+        except (ValueError, SyntaxError):
+            return {}
 
-    data8 = data3[['OS', 'NSE Script ID', 'Proto', 'IP']]
-    data9 = data8.dropna()
-    data10 = pd.DataFrame()
+    parsed = masscan_df["ports"].map(_first_port)
+    masscan_df = masscan_df.copy()
+    masscan_df["port"] = parsed.map(lambda d: d.get("port"))
+    masscan_df["ttl"] = parsed.map(lambda d: d.get("ttl"))
+    masscan_df["timestamp"] = masscan_df["timestamp"].map(
+        lambda ts: time.mktime(
+            datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").timetuple()
+        )
+        if isinstance(ts, str) else ts
+    )
+    return masscan_df
 
-    o = []
-    o1 = []
-    o2 = []
-    sunofdog2 = data6["vulnerabilities"]
-    t2 = sunofdog2.to_dict()
-    for i in range(len(t2)):
-        b = t2[i].split()
-        data_str = "".join(b)
-        result = ast.literal_eval(data_str)
-        r1 = result.get('id')
-        r2 = result.get('references')
-        r3 = result.get('msg')
-        o.append(r1)
-        o1.append(r2)
-        o2.append(r3)
-    data10["id"] = o
-    data10["references"] = o1
-    data10["msg"] = o2
 
-    data7 = data5.sort_values("timestamp", ascending=False)
-    print(tabulate(data7, headers="keys", tablefmt="psql"))
-    print(tabulate(data9, headers="keys", tablefmt="psql"))
-    print(tabulate(data10, headers="keys", tablefmt="psql"))
+# ---------- обработка nikto ----------
 
-    total_searches = str(input("How many searches you would like to do: "))
-    while not total_searches.isdigit():
-        print("wrong number")
-        total_searches1 = str(input("How many searches you would like to do: "))
-        total_searches = total_searches1
-    zz = int(total_searches)
+def parse_nikto(nikto_df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for cell in nikto_df["vulnerabilities"]:
+        try:
+            vulns = ast.literal_eval(str(cell))
+        except (ValueError, SyntaxError):
+            continue
+        if isinstance(vulns, dict):
+            rows.append({
+                "id": vulns.get("id"),
+                "references": vulns.get("references"),
+                "msg": vulns.get("msg"),
+            })
+    return pd.DataFrame(rows)
 
-    prt = list(data7["port"])
-    prt1 = [int(i) for i in prt]
-    searchTerm = str(input("Please enter your search term(Open Port:""port""Vulnerabilities):"))
-    while not searchTerm.isdigit():
-        ss1 = str(input())
-        searchTerm = ss1
-    searchTerm = int(searchTerm)
-    while searchTerm not in prt1:
-        print("this port is not include, change him")
-        searchTerm1 = int(input("Please enter your search term(Open Port:""port""Vulnerabilities):"))
-        searchTerm = searchTerm1
 
-    cc = searchTerm
-    cc = str(cc)
-    cc1 = list(search(f"Port Vulners {cc}", stop=zz))
-    cc2 = []
-    for i in cc1:
-        cc2.append(i)
-    cc3 = random.randint(0, len(cc2) - 1)
-    response = cc2[cc3]
-    response1 = requests.get(response)
-    soup = BeautifulSoup(response1.text, "html.parser")
-    soup1 = soup.find_all("div")
-    for soup2 in soup1:
-        soup3 = soup2.find_all("p")
-        for tag in soup3:
-            print(tag.get_text())
-except Exception as e:
-    print(e)
-    exit("Masscan's problems in work")
+# ---------- основная логика ----------
+
+def build_report(nmap_csv: Path, masscan_csv: Path, nikto_csv: Path) -> None:
+    data_nmap = pd.read_csv(nmap_csv)
+    data_masscan = parse_masscan(pd.read_csv(masscan_csv))
+    data_nikto = pd.read_csv(nikto_csv)
+
+    combined = pd.concat([data_nmap, data_masscan], ignore_index=True)
+    print(tabulate(combined, headers="keys", tablefmt="psql"))
+
+    ports_view = combined[["port", "timestamp", "ttl"]].dropna()
+    print(tabulate(ports_view.sort_values("timestamp", ascending=False),
+                   headers="keys", tablefmt="psql"))
+
+    nikto_view = parse_nikto(data_nikto)
+    print(tabulate(nikto_view, headers="keys", tablefmt="psql"))
+
+
+def ask_int(prompt: str, validator=None) -> int:
+    while True:
+        raw = input(prompt).strip()
+        if not raw.isdigit():
+            print("Ожидается целое число.")
+            continue
+        value = int(raw)
+        if validator and not validator(value):
+            print("Недопустимое значение, попробуйте снова.")
+            continue
+        return value
+
+
+def web_search_vulns(port: int, limit: int) -> None:
+    if google_search is None:
+        print("Модуль googlesearch не установлен — пропускаем поиск.")
+        return
+    try:
+        urls = list(google_search(f"Port Vulners {port}", num_results=limit))
+    except Exception as exc:
+        print(f"Поиск не удался: {exc}")
+        return
+    if not urls:
+        print("Ничего не найдено.")
+        return
+    url = random.choice(urls)
+    print(f"Открываем: {url}")
+    response = requests.get(url, timeout=10)
+    soup = BeautifulSoup(response.text, "html.parser")
+    for div in soup.find_all("div"):
+        for p in div.find_all("p"):
+            print(p.get_text())
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", help="IP-адрес для сканирования")
+    parser.add_argument("--skip-scan", action="store_true",
+                        help="Не запускать сканеры (использовать готовые файлы)")
+    args = parser.parse_args()
+
+    target = args.target or input("Введите IP-адрес для сканирования: ").strip()
+    if not target and not args.skip_scan:
+        print("Пустой адрес.", file=sys.stderr)
+        return 1
+
+    if not args.skip_scan:
+        run_scan(ScanConfig(target=target))
+
+    files = convert_all()
+    build_report(files["nmap"], files["masscan"], files["nikto"])
+
+    limit = ask_int("Сколько результатов поиска выполнить: ",
+                    validator=lambda x: x > 0)
+    port = ask_int("Порт для поиска уязвимостей: ")
+    web_search_vulns(port, limit)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
